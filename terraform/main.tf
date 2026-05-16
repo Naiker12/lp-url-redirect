@@ -3,14 +3,6 @@ locals {
   api_execution_arn = "arn:${data.aws_partition.current.partition}:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${var.api_gateway_id}"
 }
 
-data "aws_dynamodb_table" "urls" {
-  name = var.dynamodb_table_name
-}
-
-data "aws_caller_identity" "current" {}
-
-data "aws_partition" "current" {}
-
 resource "aws_iam_role" "lambda_role" {
   name = "${local.resource_prefix}-lambda-role"
 
@@ -50,7 +42,10 @@ resource "aws_iam_role_policy" "lambda_policy" {
           "dynamodb:GetItem",
           "dynamodb:UpdateItem"
         ]
-        Resource = data.aws_dynamodb_table.urls.arn
+        Resource = [
+          data.aws_dynamodb_table.urls.arn,
+          data.aws_dynamodb_table.url_stats.arn
+        ]
       }
     ]
   })
@@ -68,7 +63,8 @@ resource "aws_lambda_function" "redirect" {
 
   environment {
     variables = {
-      DYNAMODB_TABLE = data.aws_dynamodb_table.urls.name
+      DYNAMODB_TABLE   = data.aws_dynamodb_table.urls.name
+      STATS_TABLE_NAME = data.aws_dynamodb_table.url_stats.name
     }
   }
 }

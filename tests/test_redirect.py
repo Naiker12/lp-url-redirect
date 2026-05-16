@@ -1,6 +1,7 @@
 import json
 import sys
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -38,10 +39,13 @@ class RedirectServiceTest(unittest.TestCase):
         response = RedirectService(repository=repository).redirect("Ab3xY9")
 
         self.assertEqual(response["statusCode"], 302)
-        self.assertEqual(response["headers"], {"Location": EXAMPLE_ORIGINAL_URL})
+        self.assertEqual(response["headers"]["Location"], EXAMPLE_ORIGINAL_URL)
+        self.assertEqual(response["headers"]["Access-Control-Allow-Origin"], "*")
+        self.assertEqual(response["headers"]["Access-Control-Expose-Headers"], "Location")
         self.assertNotIn("body", response)
         repository.find_by_code.assert_called_once_with("Ab3xY9")
         repository.increment_clicks.assert_called_once_with("Ab3xY9")
+        repository.increment_daily_clicks.assert_called_once_with("Ab3xY9", datetime.now(UTC).date().isoformat())
 
     def test_missing_code_returns_structured_not_found(self):
         repository = MagicMock()
@@ -50,7 +54,8 @@ class RedirectServiceTest(unittest.TestCase):
         response = RedirectService(repository=repository).redirect("Ab3xY9")
 
         self.assertEqual(response["statusCode"], 404)
-        self.assertEqual(response["headers"], {"Content-Type": "application/json"})
+        self.assertEqual(response["headers"]["Content-Type"], "application/json")
+        self.assertEqual(response["headers"]["Access-Control-Allow-Origin"], "*")
         self.assertEqual(parse_body(response), {"error": "URL not found", "code": "Ab3xY9"})
         repository.find_by_code.assert_called_once_with("Ab3xY9")
         repository.increment_clicks.assert_not_called()
@@ -84,17 +89,24 @@ class RedirectServiceTest(unittest.TestCase):
         dynamodb = MagicMock()
         dynamodb.Table.return_value = table
 
-        repository = UrlRepository(table_name="urls", dynamodb_resource=dynamodb)
+        repository = UrlRepository(table_name="urls", stats_table_name="url_stats", dynamodb_resource=dynamodb)
         item = repository.find_by_code("Ab3xY9")
         repository.increment_clicks("Ab3xY9")
+        repository.increment_daily_clicks("Ab3xY9", "2026-05-16")
 
-        dynamodb.Table.assert_called_once_with("urls")
+        self.assertEqual(dynamodb.Table.call_args_list[0].args, ("urls",))
+        self.assertEqual(dynamodb.Table.call_args_list[1].args, ("url_stats",))
         table.get_item.assert_called_once_with(Key={"codigo": "Ab3xY9"})
-        table.update_item.assert_called_once_with(
-            Key={"codigo": "Ab3xY9"},
-            UpdateExpression="ADD clicks :inc",
-            ExpressionAttributeValues={":inc": 1},
-        )
+        self.assertEqual(table.update_item.call_args_list[0].kwargs, {
+            "Key": {"codigo": "Ab3xY9"},
+            "UpdateExpression": "ADD clicks :inc",
+            "ExpressionAttributeValues": {":inc": 1},
+        })
+        self.assertEqual(table.update_item.call_args_list[1].kwargs, {
+            "Key": {"codigo": "Ab3xY9", "fecha": "2026-05-16"},
+            "UpdateExpression": "ADD clicks :inc",
+            "ExpressionAttributeValues": {":inc": 1},
+        })
         self.assertEqual(item, {"codigo": "Ab3xY9", "url_original": EXAMPLE_ORIGINAL_URL})
 
     def test_non_get_method_returns_method_not_allowed(self):
