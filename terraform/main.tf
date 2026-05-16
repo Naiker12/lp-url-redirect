@@ -1,0 +1,99 @@
+locals {
+  resource_prefix = "${var.project_name}-${var.environment}"
+}
+
+data "aws_dynamodb_table" "urls" {
+  name = var.dynamodb_table_name
+}
+
+data "aws_apigatewayv2_api" "http_api" {
+  api_id = var.api_gateway_id
+}
+
+resource "aws_iam_role" "lambda_role" {
+  name = "${local.resource_prefix}-lambda-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_policy" {
+  name = "${local.resource_prefix}-lambda-policy"
+  role = aws_iam_role.lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem"
+        ]
+        Resource = data.aws_dynamodb_table.urls.arn
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "redirect" {
+  function_name    = "${local.resource_prefix}-redirect"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "handler.lambda_handler"
+  runtime          = "python3.12"
+  filename         = data.archive_file.lambda_zip.output_path
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  memory_size      = 256
+  timeout          = 10
+
+  environment {
+    variables = {
+      DYNAMODB_TABLE = data.aws_dynamodb_table.urls.name
+    }
+  }
+}
+
+resource "aws_apigatewayv2_integration" "redirect" {
+  api_id                 = data.aws_apigatewayv2_api.http_api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.redirect.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "redirect" {
+  api_id    = data.aws_apigatewayv2_api.http_api.id
+  route_key = "GET /{codigo}"
+  target    = "integrations/${aws_apigatewayv2_integration.redirect.id}"
+}
+
+resource "aws_lambda_permission" "allow_api_gateway" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.redirect.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${data.aws_apigatewayv2_api.http_api.execution_arn}/*/*"
+}
+
+output "lambda_function_name" {
+  description = "Lambda function name."
+  value       = aws_lambda_function.redirect.function_name
+}
