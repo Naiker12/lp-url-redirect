@@ -1,14 +1,15 @@
 locals {
-  resource_prefix = "${var.project_name}-${var.environment}"
+  resource_prefix   = "${var.project_name}-${var.environment}"
+  api_execution_arn = "arn:${data.aws_partition.current.partition}:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${var.api_gateway_id}"
 }
 
 data "aws_dynamodb_table" "urls" {
   name = var.dynamodb_table_name
 }
 
-data "aws_apigatewayv2_api" "http_api" {
-  api_id = var.api_gateway_id
-}
+data "aws_caller_identity" "current" {}
+
+data "aws_partition" "current" {}
 
 resource "aws_iam_role" "lambda_role" {
   name = "${local.resource_prefix}-lambda-role"
@@ -73,14 +74,14 @@ resource "aws_lambda_function" "redirect" {
 }
 
 resource "aws_apigatewayv2_integration" "redirect" {
-  api_id                 = data.aws_apigatewayv2_api.http_api.id
+  api_id                 = var.api_gateway_id
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.redirect.invoke_arn
   payload_format_version = "2.0"
 }
 
 resource "aws_apigatewayv2_route" "redirect" {
-  api_id    = data.aws_apigatewayv2_api.http_api.id
+  api_id    = var.api_gateway_id
   route_key = "GET /{codigo}"
   target    = "integrations/${aws_apigatewayv2_integration.redirect.id}"
 }
@@ -90,7 +91,7 @@ resource "aws_lambda_permission" "allow_api_gateway" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.redirect.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${data.aws_apigatewayv2_api.http_api.execution_arn}/*/*"
+  source_arn    = "${local.api_execution_arn}/*/*"
 }
 
 output "lambda_function_name" {

@@ -33,6 +33,12 @@ python -m unittest discover tests
 
 ## Deploy
 
+Si `terraform init` falla por espacio en `C:\Users\<usuario>\AppData\Local\Temp`, usa el script del proyecto para descargar providers usando carpetas temporales en `D:`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\init-terraform.ps1
+```
+
 ```bash
 terraform init
 terraform validate
@@ -41,7 +47,23 @@ terraform apply
 terraform destroy
 ```
 
-Antes de aplicar, define `api_gateway_id` con el id del HTTP API existente y `dynamodb_table_name` con la tabla creada por el modulo de acortamiento.
+Antes de aplicar, crea `terraform/terraform.tfvars` tomando como base `terraform/terraform.tfvars.example`.
+
+Puedes obtener el id correcto desde el modulo `lp-url-shortener`:
+
+```powershell
+cd D:\lp-url-shortener\terraform
+terraform output api_gateway_id
+```
+
+```hcl
+aws_region          = "us-east-1"
+dynamodb_table_name = "urls"
+api_gateway_id      = "fqltkzf336"
+environment         = "dev"
+```
+
+`api_gateway_id` debe ser solo el id del HTTP API existente, no la URL completa, no el account id y no `yes`.
 
 ## Probar en Postman
 
@@ -61,7 +83,7 @@ Para ver el `302`, deja desactivado `Follow redirects` en la request `Redirect U
 
 ## Recursos creados por Terraform
 
-- Lambda Python 3.12.
+- Lambda Python 
 - IAM role con permisos minimos de logs, `dynamodb:GetItem` y `dynamodb:UpdateItem`.
 - Integracion Lambda proxy.
 - Ruta `GET /{codigo}` en el API Gateway HTTP API existente.

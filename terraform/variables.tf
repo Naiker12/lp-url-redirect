@@ -19,6 +19,11 @@ variable "dynamodb_table_name" {
 variable "api_gateway_id" {
   description = "Existing API Gateway HTTP API id where GET /{codigo} will be attached."
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9]{10}$", var.api_gateway_id))
+    error_message = "api_gateway_id must be only the HTTP API id, for example fqltkzf336. Do not use the full URL, account id, ARN, or yes/no values."
+  }
 }
 
 variable "environment" {
