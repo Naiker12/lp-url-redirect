@@ -10,7 +10,7 @@ Servicio serverless para redirigir URLs cortas con Python 3.12, AWS Lambda, API 
 
 ```http
 HTTP/1.1 302 Found
-Location: https://youtu.be/xFrGuyw1V8s?si=Biwdg-LYqohj05Px
+Location: <URL_LARGA>
 ```
 
 ### URL inexistente
@@ -18,7 +18,7 @@ Location: https://youtu.be/xFrGuyw1V8s?si=Biwdg-LYqohj05Px
 ```json
 {
   "error": "URL not found",
-  "code": "Ab3xY9"
+  "code": "<CODIGO>"
 }
 ```
 
@@ -57,10 +57,11 @@ terraform output api_gateway_id
 ```
 
 ```hcl
-aws_region          = "us-east-1"
-dynamodb_table_name = "urls"
-api_gateway_id      = "fqltkzf336"
-environment         = "dev"
+aws_region          = "<REGION_AWS>"
+dynamodb_table_name = "<TABLA_URLS>"
+stats_table_name    = "<TABLA_STATS>"
+api_gateway_id      = "<API_GATEWAY_ID>"
+environment         = "<AMBIENTE>"
 ```
 
 `api_gateway_id` debe ser solo el id del HTTP API existente, no la URL completa, no el account id y no `yes`.
