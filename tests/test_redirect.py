@@ -15,8 +15,8 @@ from services.redirect_service import RedirectService
 EXAMPLE_ORIGINAL_URL = "https://youtu.be/xFrGuyw1V8s?si=Biwdg-LYqohj05Px"
 
 
-def build_event(code: str | None = "Ab3xY9", method: str = "GET") -> dict:
-    event = {"httpMethod": method}
+def build_event(code: str | None = "Ab3xY9", method: str = "GET", query_params: dict | None = None) -> dict:
+    event = {"httpMethod": method, "queryStringParameters": query_params}
     if code is not None:
         event["pathParameters"] = {"codigo": code}
     return event
@@ -60,6 +60,24 @@ class RedirectServiceTest(unittest.TestCase):
         repository.find_by_code.assert_called_once_with("Ab3xY9")
         repository.increment_clicks.assert_not_called()
 
+    def test_resolve_returns_original_url_without_incrementing_clicks(self):
+        repository = MagicMock()
+        repository.find_by_code.return_value = {
+            "codigo": "Ab3xY9",
+            "url_original": EXAMPLE_ORIGINAL_URL,
+            "created_at": "2026-05-16T00:00:00+00:00",
+            "clicks": 0,
+        }
+
+        response = RedirectService(repository=repository).resolve("Ab3xY9")
+
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(response["headers"]["Content-Type"], "application/json")
+        self.assertEqual(parse_body(response), {"url_original": EXAMPLE_ORIGINAL_URL})
+        repository.find_by_code.assert_called_once_with("Ab3xY9")
+        repository.increment_clicks.assert_not_called()
+        repository.increment_daily_clicks.assert_not_called()
+
     def test_router_extracts_code_from_path_parameters(self):
         repository = MagicMock()
         repository.find_by_code.return_value = {
@@ -82,6 +100,30 @@ class RedirectServiceTest(unittest.TestCase):
 
         self.assertEqual(response["statusCode"], 302)
         repository.find_by_code.assert_called_once_with("Ab3xY9")
+
+    def test_router_resolves_code_without_redirect_when_requested(self):
+        repository = MagicMock()
+        repository.find_by_code.return_value = {
+            "codigo": "Ab3xY9",
+            "url_original": EXAMPLE_ORIGINAL_URL,
+            "created_at": "2026-05-16T00:00:00+00:00",
+            "clicks": 0,
+        }
+
+        original_init = RedirectService.__init__
+
+        def init_with_repository(self):
+            original_init(self, repository=repository)
+
+        RedirectService.__init__ = init_with_repository
+        try:
+            response = route(build_event(query_params={"resolve": "true"}))
+        finally:
+            RedirectService.__init__ = original_init
+
+        self.assertEqual(response["statusCode"], 200)
+        repository.find_by_code.assert_called_once_with("Ab3xY9")
+        repository.increment_clicks.assert_not_called()
 
     def test_repository_uses_atomic_update_item_to_increment_clicks(self):
         table = MagicMock()

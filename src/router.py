@@ -9,6 +9,11 @@ def route(event):
 
     if method == "GET":
         code = (event.get("pathParameters") or {}).get("codigo")
+        query_params = event.get("queryStringParameters") or {}
+
+        if query_params.get("resolve") == "true":
+            return RedirectService().resolve(code)
+
         return RedirectService().redirect(code)
 
     if method == "OPTIONS":

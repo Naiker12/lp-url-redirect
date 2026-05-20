@@ -29,6 +29,23 @@ class RedirectService:
             },
         }
 
+    def resolve(self, code: str | None) -> dict:
+        if not code:
+            return self._not_found(code)
+
+        record = self.repository.find_by_code(code)
+        if record is None:
+            return self._not_found(code)
+
+        return {
+            "statusCode": int(HTTPStatus.OK),
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+            },
+            "body": json.dumps({"url_original": record["url_original"]}),
+        }
+
     @staticmethod
     def _not_found(code: str | None) -> dict:
         return {
