@@ -32,13 +32,6 @@ python -m unittest discover tests
 ```
 
 ## Deploy
-
-Si `terraform init` falla por espacio en `C:\Users\<usuario>\AppData\Local\Temp`, usa el script del proyecto para descargar providers usando carpetas temporales en `D:`:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\init-terraform.ps1
-```
-
 ```bash
 terraform init
 terraform validate
