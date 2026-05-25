@@ -1,6 +1,8 @@
 locals {
   resource_prefix   = "${var.project_name}-${var.environment}"
   api_execution_arn = "arn:${data.aws_partition.current.partition}:execute-api:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${var.api_gateway_id}"
+  stats_table_arn   = "arn:${data.aws_partition.current.partition}:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.stats_table_name}"
+  urls_table_arn    = "arn:${data.aws_partition.current.partition}:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.dynamodb_table_name}"
 }
 
 resource "aws_iam_role" "lambda_role" {
@@ -43,8 +45,8 @@ resource "aws_iam_role_policy" "lambda_policy" {
           "dynamodb:UpdateItem"
         ]
         Resource = [
-          data.aws_dynamodb_table.urls.arn,
-          data.aws_dynamodb_table.url_stats.arn
+          local.urls_table_arn,
+          local.stats_table_arn
         ]
       }
     ]
@@ -63,8 +65,8 @@ resource "aws_lambda_function" "redirect" {
 
   environment {
     variables = {
-      DYNAMODB_TABLE   = data.aws_dynamodb_table.urls.name
-      STATS_TABLE_NAME = data.aws_dynamodb_table.url_stats.name
+      DYNAMODB_TABLE   = var.dynamodb_table_name
+      STATS_TABLE_NAME = var.stats_table_name
     }
   }
 }
